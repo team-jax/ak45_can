@@ -5,7 +5,7 @@
 > **이 문서는 실행 방법만 담는다.**
 > 실측 기록·발견 사항·트러블슈팅은 [`docs/FINDINGS.md`](docs/FINDINGS.md)로 옮겼다. **안 될 때 그쪽을 본다.**
 > 터미널에서 바로 보는 한 장짜리 요약은 `docs/run.txt`.
-> 프로토콜 상세는 `AGENTS.md`, ROS2 사양은 `docs/ros2.md`(Phase 2는 §13), 프로젝트 상태는 `docs/STATUS.md`.
+> 프로토콜 상세는 `AGENTS.md`, ROS2 사양은 `ak45_ros2/docs/ros2.md`(Phase 2는 §13), 프로젝트 상태는 `docs/STATUS.md`.
 
 ## 어느 것을 쓸 것인가
 
@@ -36,29 +36,31 @@
 
 ### 저장소 구조 — 어디에서 무엇을 빌드하나
 
-CAN 계층과 ROS 계층은 **디렉터리가 완전히 분리**되어 있다. 라이브러리 소스는 `ak45_can/` 에
-**단 하나**만 있고, ROS 패키지는 사본을 두지 않고 그것을 직접 컴파일한다.
+**CAN 계층과 ROS 계층은 저장소가 다르다.** 이 저장소(`ak45_can`)가 CAN 계층이고,
+라이브러리 소스는 여기 **단 하나**만 있다. ROS2 패키지는 사본 없이 이걸 직접 컴파일한다.
 
 ```
-Can/
-├── ak45_can/          # CAN 계층. ROS 전혀 모름 → make 로 빌드
-│   ├── include/ak45_36_socketcan_control.h
-│   ├── src/ak45_36_socketcan_control.cpp
-│   ├── apps/main.cpp          → ak45_ctrl
-│   ├── apps/demo_ramp.cpp     → ak45_ctrl_demo
-│   └── Makefile
-├── ak45_ros2/         # ROS 계층. ../ak45_can 을 링크 → colcon 으로 빌드
-│   └── src/ak45_node.cpp
-├── tools/             # vcan 시뮬레이터
-└── docs/              # ros2.md, STATUS.md, FINDINGS.md, run.txt
+ak45_can/   (이 저장소 — make)            ak45_ros2/  (별도 저장소 — colcon)
+├── include/ak45_36_socketcan_control.h  ◄──  CMakeLists.txt (AK45_CAN_DIR)
+├── src/ak45_36_socketcan_control.cpp    ◄──  src/ak45_node.cpp
+├── apps/main.cpp      → ak45_ctrl            scripts/ak45_deg
+├── apps/demo_ramp.cpp → ak45_ctrl_demo       launch/ · config/
+├── Makefile                                  docs/ros2.md (사양서)
+├── tools/  대시보드 · vcan 시뮬레이터
+└── docs/   STATUS.md · FINDINGS.md · run.txt
 ```
 
-`~/ros2_ws/src/Can` 이 **저장소 루트**를 가리키는 심링크여야 한다 (예전엔 `ak45_ros2` 만 가리켰다).
-`ak45_ros2/CMakeLists.txt` 가 `../ak45_can` 을 찾기 때문이다. 없으면:
+**ROS2 를 쓸 거면 두 저장소를 `~/ros2_ws/src/` 아래 형제로 클론한다.**
+`AK45_CAN_DIR` 기본값이 `../ak45_can` 이라 그래야 설정 없이 맞는다:
 
 ```bash
-ln -sfn ~/바탕화면/Can ~/ros2_ws/src/Can
+cd ~/ros2_ws/src
+git clone https://github.com/team-jax/ak45_can.git
+git clone https://github.com/team-jax/ak45_ros2.git
 ```
+
+다른 곳에 두었으면: `colcon build --packages-select ak45_ros2 --cmake-args -DAK45_CAN_DIR=<경로>`
+→ ROS2 쪽 상세는 **[`team-jax/ak45_ros2`](https://github.com/team-jax/ak45_ros2)** 의 README 를 본다.
 
 ### can-utils
 
@@ -71,8 +73,8 @@ sudo apt install can-utils        # candump / cansend. 3단계에 필수
 `make`만 돌리면 `.o` 타임스탬프 때문에 재링크를 건너뛰어 안 고쳐진다.
 
 ```bash
-cd ~/바탕화면/Can/ak45_can
-make clean && make                # ak45_can/ak45_ctrl, ak45_can/ak45_ctrl_demo 생성
+cd ~/ros2_ws/src/ak45_can
+make clean && make                # ./ak45_ctrl, ./ak45_ctrl_demo 생성
 ```
 
 > `ak45_demo`는 Makefile 타겟도 `make clean` 대상도 아닌 유령 바이너리다. 깨진 상태 그대로이므로 쓰지 않는다.
@@ -359,7 +361,7 @@ ros2 topic echo /diagnostics        # status 7개. 모터는 KeyValue 9개
 | **S3** | 피드백 없는 모터 | 명령 프레임이 안 나간다. 지금 ID 0x02 외 5대가 여기 해당. **2026-09-03부터 WARN 을 찍는다** (전에는 무로그였다) |
 | **S4** | 모터 `error_code != 0` | 라이브러리가 프레임을 막고 노드가 ERROR 로그 |
 
-**`max_command_deg` 는 현재 360.0** 이다. 2026-08-27 기준축 판별(출력축 기준, `docs/ros2.md` §13.10)과
+**`max_command_deg` 는 현재 360.0** 이다. 2026-08-27 기준축 판별(출력축 기준, `ak45_ros2/docs/ros2.md` §13.10)과
 90° 실기 검증이 끝나 라이브러리 상한(`SOFT_LIMIT_POS_DEG 360.0f`)까지 열어 뒀다.
 ⚠️ **출력축에 링크·기구부가 붙으면 물리적 허용 각도까지 다시 낮춰라.**
 바꾸려면 `config/ak45_node.yaml` 을 고치고 노드를 재시작한다.
@@ -376,7 +378,7 @@ CAN ID·함수 ID·EID·데이터 바이트까지(16진수는 토글로 같이 �
 ROS2가 필요 없고 `ak45_can` 빌드도 필요 없다. Python 표준 라이브러리만 쓴다.
 
 ```bash
-cd ~/바탕화면/Can/tools
+cd ~/ros2_ws/src/ak45_can/tools
 ./ak45_dashboard.py                  # http://127.0.0.1:8777
 ```
 
@@ -448,10 +450,10 @@ sudo modprobe vcan
 sudo ip link add dev vcan0 type vcan && sudo ip link set up vcan0
 
 # 터미널 1 — 모터 6대 시뮬레이터
-cd ~/바탕화면/Can/tools && ./ak45_vcan_sim.py --iface vcan0
+cd ~/ros2_ws/src/ak45_can/tools && ./ak45_vcan_sim.py --iface vcan0
 
 # 터미널 2 — 대시보드
-cd ~/바탕화면/Can/tools && ./ak45_dashboard.py --iface vcan0
+cd ~/ros2_ws/src/ak45_can/tools && ./ak45_dashboard.py --iface vcan0
 ```
 
 시뮬레이터는 목표각을 받아 60도/초로 움직이는 흉내를 내므로, 전송 후 카드의 위치값이
@@ -472,7 +474,7 @@ cd ~/바탕화면/Can/tools && ./ak45_dashboard.py --iface vcan0
 **① 먼저 현재 각도를 읽는다 (모터 안 움직임)**
 
 ```bash
-cd ~/바탕화면/Can/ak45_can
+cd ~/ros2_ws/src/ak45_can
 ./ak45_ctrl                # 인자 없음 = 위치 명령 0건 (모터 안 움직임)
 ```
 
@@ -494,7 +496,7 @@ candump can0
 
 터미널 1:
 ```bash
-cd ~/바탕화면/Can/ak45_can
+cd ~/ros2_ws/src/ak45_can
 ./ak45_ctrl                # 다시 인자 없이 띄운다
 ```
 

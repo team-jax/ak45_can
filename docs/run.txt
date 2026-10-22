@@ -25,7 +25,7 @@
   ip -details link show can0        # state UP, bitrate 1000000 확인
 
   # Phase 0 CLI 를 쓸 때만
-  cd ~/바탕화면/Can/ak45_can
+  cd ~/ros2_ws/src/ak45_can
   make clean && make               # clean 필수 (아래 주의 1)
 
   # ROS2 노드를 쓸 때만
@@ -165,7 +165,7 @@
       -> 노드가 ERROR 로그를 남긴다
 
   파라미터를 바꾸려면 :
-     ~/바탕화면/Can/ak45_ros2/config/ak45_node.yaml 수정 후 노드 재시작
+     ~/ros2_ws/src/ak45_can/ak45_ros2/config/ak45_node.yaml 수정 후 노드 재시작
 
 --------------------------------------------------------------------
  종료
@@ -181,7 +181,7 @@
 
   ** 방법 A 의 노드를 먼저 끈다. flock 때문에 동시 실행 불가 **
 
-  cd ~/바탕화면/Can/ak45_can
+  cd ~/ros2_ws/src/ak45_can
   ./ak45_ctrl 2>/dev/null            # 2>/dev/null 은 워치독 도배 숨김 (주의 2)
 
   프롬프트가 뜬다 :
@@ -303,7 +303,7 @@
     계속 오르면 전원을 내리고 배선/보드를 점검한다.
 
  6) 패키지 위치.
-    ROS2 패키지는 ~/바탕화면/Can/ak45_ros2/ 에 있다.
+    ROS2 패키지는 ~/ros2_ws/src/ak45_can/ak45_ros2/ 에 있다.
     ~/ros2_ws/src/ak45_ros2 는 거기를 가리키는 심볼릭 링크다.
     소스를 고치면 colcon build 를 다시 돌린다.
 

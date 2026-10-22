@@ -4,7 +4,7 @@
 브라우저에서 모터 상태를 보고 각도를 넣어 테스트한다. **모든 수치를 10진수로 보여준다**
 (CAN ID·함수 ID·데이터 바이트 포함. 16진수는 토글로 같이 볼 수 있다).
 
-프레임 규격은 ../ak45_can/src/ak45_36_socketcan_control.cpp 와 1:1 로 맞췄다.
+프레임 규격은 ../src/ak45_36_socketcan_control.cpp 와 1:1 로 맞췄다.
   명령  mode 4 (SET_POS)          : int32 BE, deg * 10000
   명령  mode 2 (SET_CURRENT_BRAKE): int32 BE, A   * 1000
   피드백 EID = 41<<8 | ID (0x29) · 8B

@@ -17,7 +17,7 @@ CubeMars **AK45-36 KV80** 액추에이터 **6대(CAN ID 0x01~0x06)** 를 Linux +
 
 세부 진행 상황·미결 항목은 [`docs/STATUS.md`](docs/STATUS.md)를, **실행 방법은 [`RUN.md`](RUN.md)** 를,
 실측 기록·트러블슈팅은 [`docs/FINDINGS.md`](docs/FINDINGS.md)를 본다.
-ROS2 노드 사양은 [`docs/ros2.md`](docs/ros2.md) (Phase 2는 §13), 패키지는 [`ak45_ros2/`](ak45_ros2/)에 있다.
+ROS2 노드 사양은 [`ak45_ros2` 의 `docs/ros2.md`](https://github.com/team-jax/ak45_ros2) (Phase 2는 §13), 패키지는 [`team-jax/ak45_ros2`](https://github.com/team-jax/ak45_ros2)에 있다.
 
 ## ROS2로 모터 움직이기 (Phase 2)
 
@@ -50,44 +50,57 @@ rad(`sensor_msgs/msg/JointState`)이므로, 정책 노드가 붙을 때는 표�
 
 ## 저장소 구성
 
-CAN 계층과 ROS 계층은 **디렉터리로 완전히 분리**되어 있다.
-라이브러리 소스는 `ak45_can/` 에 **단 하나**만 있고, ROS 패키지는 사본 없이 그것을 직접 컴파일한다.
+**CAN 계층과 ROS 계층은 저장소가 분리되어 있다.** 이 저장소가 CAN 계층이고,
+라이브러리 소스는 여기 **단 하나**만 있다. ROS2 패키지는 사본 없이 이 저장소의 원본을
+직접 컴파일한다 → [`team-jax/ak45_ros2`](https://github.com/team-jax/ak45_ros2)
 
 ```
-Can/
-├── ak45_can/                  # 계층 1 — CAN. ROS 의존 0. make 로 빌드
-│   ├── include/ak45_36_socketcan_control.h
-│   ├── src/ak45_36_socketcan_control.cpp
-│   ├── apps/main.cpp               → ak45_ctrl
-│   ├── apps/demo_ramp.cpp          → ak45_ctrl_demo
-│   └── Makefile
-├── ak45_ros2/                 # 계층 2 — ROS2 Humble 패키지. colcon 으로 빌드
-│   ├── src/ak45_node.cpp           ← 이 패키지의 유일한 자체 소스
-│   ├── scripts/ak45_deg
-│   ├── launch/ · config/
-│   └── CMakeLists.txt              → ../ak45_can 의 원본을 직접 컴파일
-├── tools/ak45_vcan_sim.py     # 하드웨어 없이 돌리는 vcan 모터 시뮬레이터
-├── docs/                      # ros2.md · STATUS.md · FINDINGS.md · run.txt
-├── README.md · RUN.md · AGENTS.md
+ak45_can/   (이 저장소 — ROS 의존 0, make 로 빌드)
+├── include/ak45_36_socketcan_control.h    ← 라이브러리 유일본
+├── src/ak45_36_socketcan_control.cpp      ← 라이브러리 유일본
+├── apps/main.cpp                          → ak45_ctrl
+├── apps/demo_ramp.cpp                     → ak45_ctrl_demo
+├── Makefile
+├── tools/  ak45_dashboard.py + dashboard.html (웹 대시보드)
+│           ak45_vcan_sim.py (vcan 모터 시뮬레이터)
+├── docs/   STATUS.md · FINDINGS.md · run.txt
+└── README.md · RUN.md · AGENTS.md
 ```
+
+### ROS2 를 같이 쓸 때 — 두 저장소를 나란히 클론한다
+
+`ak45_ros2/CMakeLists.txt` 의 `AK45_CAN_DIR` 기본값이 `../ak45_can` 이다.
+`~/ros2_ws/src/` 아래에 **형제로** 두면 설정 없이 맞는다:
+
+```bash
+cd ~/ros2_ws/src
+git clone https://github.com/team-jax/ak45_can.git
+git clone https://github.com/team-jax/ak45_ros2.git
+cd ~/ros2_ws && colcon build --packages-select ak45_ros2
+```
+
+다른 곳에 두었으면 경로를 직접 준다:
+`colcon build --packages-select ak45_ros2 --cmake-args -DAK45_CAN_DIR=<ak45_can 경로>`
+
+CAN 만 쓸 거면 아무 데나 클론해서 `make` 하면 된다 — ROS 가 필요 없다.
 
 | 경로 | 역할 |
 |---|---|
-| `ak45_can/include/ak45_36_socketcan_control.h` | API 선언, 프로토콜 상수, `MotorState`/`BusStatus` |
-| `ak45_can/src/ak45_36_socketcan_control.cpp` | **제어 라이브러리(메인).** SocketCAN 초기화, 수신 스레드, 피드백 파싱(0x29), 명령 함수(클램핑·에러 차단), 모터별 워치독, `flock` 단일 프로세스 잠금 |
-| `ak45_can/apps/main.cpp` | → `ak45_ctrl`. 피드백 모니터링 + 터미널 목표각도 입력 CLI |
-| `ak45_can/apps/demo_ramp.cpp` | → `ak45_ctrl_demo`. 시연용 계단식 완속 이동 |
-| `ak45_can/Makefile` | `make` / `make clean` |
+| `include/ak45_36_socketcan_control.h` | API 선언, 프로토콜 상수, `MotorState`/`BusStatus` |
+| `src/ak45_36_socketcan_control.cpp` | **제어 라이브러리(메인).** SocketCAN 초기화, 수신 스레드, 피드백 파싱(0x29), 명령 함수(클램핑·에러 차단), 모터별 워치독, `flock` 단일 프로세스 잠금 |
+| `apps/main.cpp` | → `ak45_ctrl`. 피드백 모니터링 + 터미널 목표각도 입력 CLI |
+| `apps/demo_ramp.cpp` | → `ak45_ctrl_demo`. 시연용 계단식 완속 이동 |
+| `Makefile` | `make` / `make clean` |
 | `ak45_ros2/src/ak45_node.cpp` | ROS2 노드. `/joint_states`·`/diagnostics` 발행 + `/ak45/command` 구독 |
 | `AGENTS.md` | **프로토콜 레퍼런스(§1~§8)** — 매뉴얼 원문 대조 결과, 안전 규칙, 미확정 체크리스트. 이 저장소의 프로토콜 정본 |
-| `docs/ros2.md` | **ROS2 노드 구현 명세서 v3.0** — 토픽·QoS·로그 문구·검증 항목 V0~V15 (Phase 2는 §13) |
+| `ak45_ros2/docs/ros2.md` | **ROS2 노드 구현 명세서 v3.0** — 토픽·QoS·로그 문구·검증 항목 V0~V15 (Phase 2는 §13) |
 | `docs/STATUS.md` | 프로젝트 전체 상태 — 했던 일 / 하는 일 / 할 일 / 문제점 P1~P17 |
 | `docs/FINDINGS.md` | 실측 기록·발견 사항·트러블슈팅 |
 | `docs/run.txt` | 실기 실행 기록 (45°/90° 이동 로그) |
 
 > **라이브러리 사본은 더 이상 없다.** 예전에는 `ak45_ros2/src/` 와 `ak45_ros2/include/ak45_ros2/` 에
 > 같은 파일이 복사되어 있었다(498줄 + 112줄, 바이트 단위로 동일). 한쪽만 고치면 조용히 갈라지므로
-> 지웠고, `ak45_ros2/CMakeLists.txt` 가 `../ak45_can` 의 원본을 직접 컴파일한다.
+> 지웠고, `ak45_ros2/CMakeLists.txt` 가 `이 저장소` 의 원본을 직접 컴파일한다.
 >
 > `.o`·바이너리는 `.gitignore` 처리되어 추적하지 않는다. 각 PC에서 `make` 한다
 > (커밋된 바이너리는 glibc 버전이 안 맞아 실행되지 않았다).
@@ -104,7 +117,7 @@ candump can0                        # 0x00002901~0x00002906 프레임이 흘러�
 
 # 3) 빌드 (CAN 계층만. ROS 설치 불필요)
 cd ak45_can
-make clean && make                  # → ak45_can/ak45_ctrl, ak45_can/ak45_ctrl_demo
+make clean && make                  # → ./ak45_ctrl, ./ak45_ctrl_demo
 ```
 
 **2번이 안 되면 프로그램을 아무리 잘 짜도 피드백이 오지 않는다.**
@@ -147,13 +160,11 @@ Rate = 0이 가장 흔한 오진 원인이다.
 모터를 **움직이지 않고** 피드백만 `/joint_states`(50Hz)·`/diagnostics`(2Hz)로 발행하는 읽기 전용 노드.
 표준 메시지만 쓰고 커스텀 메시지를 만들지 않는다.
 
-- 사양서: [`docs/ros2.md`](docs/ros2.md) (v3.0) — 이름·값·QoS·로그 문구·검증 항목 V0~V15가 전부 확정값
-- 구현: [`ak45_ros2/`](ak45_ros2/) — 이 저장소 안에 있다 (`docs/STATUS.md` P11 해소)
-
-`~/ros2_ws/src/Can` 이 **저장소 루트**를 가리키는 심링크여야 한다 — CMakeLists 가 `../ak45_can` 을 찾는다:
+- 사양서·구현: **[`team-jax/ak45_ros2`](https://github.com/team-jax/ak45_ros2)** (별도 저장소)
+  — 이름·값·QoS·로그 문구·검증 항목 V0~V15가 전부 확정값인 `docs/ros2.md` 가 거기 있다.
 
 ```bash
-ln -sfn ~/바탕화면/Can ~/ros2_ws/src/Can      # 최초 1회
+cd ~/ros2_ws/src && git clone https://github.com/team-jax/ak45_ros2   # ak45_can 과 형제로
 cd ~/ros2_ws
 colcon build --packages-select ak45_ros2
 source install/setup.bash
@@ -202,14 +213,14 @@ cansend can0 00000468#000F4240
 
 ## 안전 규칙
 
-1. **소프트 리밋**: 명령 송신 전 클램핑. 상수는 `ak45_can/include/ak45_36_socketcan_control.h` 상단
+1. **소프트 리밋**: 명령 송신 전 클램핑. 상수는 `include/ak45_36_socketcan_control.h` 상단
    (`SOFT_LIMIT_CURRENT_A 5.0f`, `SOFT_LIMIT_ERPM 500`, `SOFT_LIMIT_POS_DEG 360.0f`).
    6대가 같은 리밋을 공유한다.
 2. **피드백 워치독**: 0x29 피드백이 200ms(`WATCHDOG_TIMEOUT_MS`) 이상 끊기면 해당 모터 정지.
    판정식이 `elapsed < 200`이므로 **정확히 200ms는 실패로 친다.**
 3. **에러 코드 처리**: `error_code ≠ 0`이면 즉시 명령 중단. 특히 1/2/6(과열·과전류)은 재시도 금지.
 4. **명령 재송신**: 라이브러리에는 재송신 루프가 **없다.** 명령 함수 1회 = CAN 프레임 1개다.
-   실제 100ms 루프는 애플리케이션(`ak45_can/apps/main.cpp`, `apps/demo_ramp.cpp`)에 있다.
+   실제 100ms 루프는 애플리케이션(`apps/main.cpp`, `apps/demo_ramp.cpp`)에 있다.
    **재송신을 멈추면 모터 타임아웃으로 홀딩 토크가 풀린다.**
 5. **온도 모니터링**: 피드백 `[6]`이 지속 상승하면 듀티/전류 축소.
 
@@ -226,7 +237,7 @@ Phase 2(모터 이동 명령) 착수 전에 반드시 확정해야 하는 것들
 - ⚠️ **정격/피크 전류** — 매뉴얼은 드라이버 보드별 정격만 제시. **실물 보드 실크 표기를 눈으로 확인**해야
   확정된다. 그때까지 `SOFT_LIMIT_CURRENT_A 5.0f` 유지.
 - ⚠️ **위치 피드백 기준축** — 출력축인지 모터축인지 매뉴얼에 명시가 없다. 모터축이면 각도에 `/36`이
-  필요하다. 판별 절차는 `docs/ros2.md` §11.4 (V3).
+  필요하다. 판별 절차는 `ak45_ros2/docs/ros2.md` §11.4 (V3).
 - ⚠️ **URDF** — 7DOF/8DOF 조율 중. TF 트리·관절 부호·영점 오프셋이 전부 여기 걸려 있다.
 
 ## 문서 지도
@@ -236,7 +247,7 @@ Phase 2(모터 이동 명령) 착수 전에 반드시 확정해야 하는 것들
 | `README.md` (이 문서) | 프로젝트 소개, 빌드·실행, 프로토콜 요약 |
 | `AGENTS.md` | 코드 작업 규칙 + **프로토콜 정본 §1~§8** (매뉴얼 대조 결과, 안전 규칙, 미확정 체크리스트) |
 | `RUN.md` | **실행 런북** — 시나리오 A/A2/B, 단계별 명령 |
-| `docs/ros2.md` | ROS2 노드 구현 명세 (v3.0) |
+| `ak45_ros2/docs/ros2.md` | ROS2 노드 구현 명세 (v3.0) |
 | `docs/STATUS.md` | 진행 상황, 문제점 P1~P17과 해결 방안 |
 | `docs/FINDINGS.md` | 실측 기록·발견 사항·트러블슈팅 |
 
